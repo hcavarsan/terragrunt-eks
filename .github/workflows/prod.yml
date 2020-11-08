@@ -1,0 +1,127 @@
+name: 'terragrunt:up'
+
+on:
+  push:
+    branches:
+    - main
+    paths:
+    - 'environment/**'
+  pull_request:
+
+jobs:
+  terraform:
+    name: 'terragrunt:env:demo'
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v2
+
+    - name: 'asdf:install'
+      uses: asdf-vm/actions/install@v1.0.0
+
+    - name: 'terraform:setup'
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_wrapper: false
+        terraform_version: 0.13.2
+
+    - name: 'aws:credentials'
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: sa-east-1
+
+    - name: 'terragrunt:init:vpc'
+      run: terragrunt init --terragrunt-non-interactive
+      working-directory: environment/sa-east-1/vpc
+
+    - name: 'terragrunt:fmt:vpc'
+      run: terragrunt fmt -check
+      working-directory: environment/sa-east-1/vpc
+
+    - name: 'terragrunt:validate:vpc'
+      run: terragrunt validate
+      working-directory: environment/sa-east-1/vpc
+
+    - name: 'terragrunt:plan:vpc'
+      run: terragrunt plan --terragrunt-non-interactive
+      working-directory: environment/sa-east-1/vpc
+
+    - name: 'terragrunt:apply:vpc'
+      run: terragrunt apply -auto-approve
+      working-directory: environment/sa-east-1/vpc
+
+    - name: 'terragrunt:init:eks'
+      run: terragrunt init --terragrunt-non-interactive
+      working-directory: environment//eks
+
+    - name: 'terragrunt:fmt:eks'
+      run: terragrunt fmt -check
+      working-directory: environment/sa-east-1/eks
+
+    - name: 'terragrunt:validate:eks'
+      run: terragrunt validate
+      working-directory: environment/sa-east-1/eks
+
+    - name: 'terragrunt:plan:eks'
+      run: terragrunt plan --terragrunt-non-interactive
+      working-directory: environment/sa-east-1/eks
+
+    - name: 'terragrunt:apply:eks'
+      run: terragrunt apply -auto-approve
+      working-directory: environment/sa-east-1/eks
+
+    - name: 'terragrunt:apply:eks:upload-kubeconfig'
+      uses: actions/upload-artifact@v1
+      with:
+        name: kubeconfig
+        path: environment/sa-east-1/eks/kubeconfig
+
+    - name: 'terragrunt:init:eks-addons'
+      run: terragrunt init --terragrunt-non-interactive
+      working-directory: environment/sa-east-1/eks-addons
+
+    - name: 'terragrunt:fmt:eks-addons'
+      run: terragrunt fmt -check
+      working-directory: environment/sa-east-1/eks-addons
+
+    - name: 'terragrunt:validate:eks-addons'
+      run: terragrunt validate
+      working-directory: environment/sa-east-1/eks-addons
+
+    - name: 'terragrunt:plan:eks-addons'
+      run: terragrunt plan --terragrunt-non-interactive
+      working-directory: environment/sa-east-1/eks-addons
+
+    - name: 'terragrunt:apply:eks-addons'
+      run: terragrunt apply -auto-approve
+      working-directory: environment/sa-east-1/eks-addons
+
+    - name: 'kubectl:wait-for-pods'
+      run: kubectl --kubeconfig=kubeconfig wait --for=condition=Ready pods --all --all-namespaces --timeout 300s
+      working-directory: environment/sa-east-1/eks
+
+    - name: 'terragrunt:destroy:eks-addons'
+      run: terragrunt destroy -auto-approve
+      working-directory: environment/sa-east-1/eks-addons
+      continue-on-error: true
+      if: "!contains(github.event.head_commit.message, 'ci keep')"
+
+    - name: 'terragrunt:destroy:eks-addons:cleanup-stale-state'
+      run: terragrunt state list 2>/dev/null | xargs terragrunt state rm
+      working-directory: environment/sa-east-1/eks-addons
+      continue-on-error: true
+      if: "!contains(github.event.head_commit.message, 'ci keep')"
+
+    - name: 'terragrunt:destroy:eks'
+      run: terragrunt destroy -auto-approve
+      working-directory: environment/sa-east-1/eks
+      continue-on-error: true
+      if: "!contains(github.event.head_commit.message, 'ci keep')"
+
+    - name: 'terragrunt:destroy:vpc'
+      run: terragrunt destroy -auto-approve
+      working-directory: environment/sa-east-1/vpc
+      continue-on-error: true
+      if: "!contains(github.event.head_commit.message, 'ci keep')"

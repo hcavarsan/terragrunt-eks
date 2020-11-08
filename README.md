@@ -1,1 +1,1 @@
-# terragrunt-eks
+# Terragrunt Example EKS
