@@ -16,9 +16,6 @@ jobs:
     - name: checkout
       uses: actions/checkout@v2
 
-    - name: 'asdf:install'
-      uses: asdf-vm/actions/install@v1.0.0
-
     - name: 'terraform:setup'
       uses: hashicorp/setup-terraform@v1
       with:
